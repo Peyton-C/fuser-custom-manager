@@ -14,7 +14,10 @@ DEFAULT_INSTALL_DIR = Path(r"C:\Fuser\Fuser\Content\Paks\custom_songs")
 import re
 
 def sanitise_artist(name: str) -> str:
-    return " ".join(re.sub(r'[<>:"/\\|?*]', "", name).split())
+    # Windows (and Wine/Proton) silently drops trailing dots and spaces from names,
+    # so a folder like "M.I.A." can't be opened from the game; the custom song
+    # loader then dies with a filesystem_error and Fuser hangs at startup.
+    return " ".join(re.sub(r'[<>:"/\\|?*]', "", name).split()).rstrip(". ")
 
 
 def install_pairs(result: DownloadResult, song_id: int, artist: str,

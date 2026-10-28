@@ -26,6 +26,11 @@ def test_sanitise_strips_illegal_chars():
     assert sanitise_artist("  Spaced  ")    == "Spaced"
     assert sanitise_artist("Bad\\Slash")    == "BadSlash"
 
+def test_sanitise_strips_trailing_dots():
+    # Windows/Wine can't open folders whose names end in "." (e.g. "M.I.A.")
+    assert sanitise_artist("M.I.A.")        == "M.I.A"
+    assert sanitise_artist("Artist . ")     == "Artist"
+
 def test_install_moves_pak_and_sig(tmp_path, conn):
     upsert_songs(conn, [BASE_SONG])
     song = get_songs(conn, {})[0]
