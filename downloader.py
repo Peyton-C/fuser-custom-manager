@@ -73,6 +73,7 @@ def _extract_archives(work_dir: Path) -> None:
             extract_dir = work_dir / path.stem
             extract_dir.mkdir(parents=True, exist_ok=True)
 
+            log.info("Extracting %s (%s)", path.name, suffix)
             try:
                 if suffix in _ZIP_EXTS:
                     with zipfile.ZipFile(path, "r") as zf:
@@ -88,6 +89,7 @@ def _extract_archives(work_dir: Path) -> None:
             except Exception:
                 # If extraction fails, clean up the empty extract dir and
                 # continue — don't let a corrupt archive block the whole pass.
+                log.exception("Failed to extract %s", path)
                 shutil.rmtree(extract_dir, ignore_errors=True)
                 continue
 
@@ -164,6 +166,8 @@ def _gdrive(url: str, work_dir: Path) -> DownloadResult:
         pairs = find_pak_sig_pairs(work_dir)
 
     if not pairs:
+        log.warning("No .pak found after extraction; contents: %s",
+                    [str(p.relative_to(work_dir)) for p in work_dir.rglob("*")])
         _rm(work_dir)
         return DownloadResult(
             status="manual", pairs=[], error_msg="No .pak/.sig found in download", raw_url=url

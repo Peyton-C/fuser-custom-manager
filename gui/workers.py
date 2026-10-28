@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from PySide6.QtCore import QThread, Signal, Slot
@@ -15,6 +16,8 @@ from sources.gdrive_art_index import lookup as gdrive_art_lookup
 
 
 _SENTINEL_SONG: dict = {"id": -1, "_sentinel": True}
+
+log = logging.getLogger(__name__)
 
 
 class ArtPriorityQueue:
@@ -281,6 +284,8 @@ class DownloadWorker(QThread):
         self._conn = conn
 
     def run(self):
+        log.info("DownloadWorker start: song %s %r by %r -> %s",
+                 self._song["id"], self._song["title"], self._song["artist"], self._install_dir)
         try:
             result = download(
                 self._song["link"],
@@ -292,13 +297,16 @@ class DownloadWorker(QThread):
                                   self._install_dir, self._conn)
                     self.done.emit(self._song["title"])
                 except Exception as exc:
+                    log.exception("Install failed for song %s", self._song["id"])
                     self.error.emit(str(exc) or "Install failed")
             elif result.status == "manual":
                 self.manual.emit(result.raw_url or "")
             else:
                 self.error.emit(result.error_msg or "Unknown error")
         except Exception as exc:
+            log.exception("DownloadWorker crashed for song %s", self._song["id"])
             self.error.emit(str(exc) or type(exc).__name__)
+        log.info("DownloadWorker end: song %s", self._song["id"])
 
 
 class BatchDownloadWorker(QThread):
@@ -316,8 +324,18 @@ class BatchDownloadWorker(QThread):
         n = len(self._songs)
         for i, song in enumerate(self._songs):
             self.item_progress.emit(f"[{i + 1}/{n}] Downloading: {song['title']}")
-            result = download(song["link"])
+            log.info("Batch [%d/%d]: song %s %r by %r -> %s",
+                     i + 1, n, song["id"], song["title"], song["artist"], self._install_dir)
             entry: dict = {"song": song}
+            try:
+                result = download(song["link"])
+            except Exception as exc:
+                # Previously uncaught: one bad song killed the whole batch thread silently.
+                log.exception("Batch download crashed for song %s", song["id"])
+                entry["status"] = "error"
+                entry["message"] = str(exc) or type(exc).__name__
+                results.append(entry)
+                continue
             if result.status == "ok":
                 try:
                     install_pairs(result, song["id"], song["artist"],
@@ -325,6 +343,7 @@ class BatchDownloadWorker(QThread):
                     entry["status"] = "ok"
                     entry["message"] = "Installed"
                 except Exception as exc:
+                    log.exception("Batch install failed for song %s", song["id"])
                     entry["status"] = "error"
                     entry["message"] = str(exc) or "Install failed"
             elif result.status == "manual":
@@ -333,6 +352,7 @@ class BatchDownloadWorker(QThread):
             else:
                 entry["status"] = "error"
                 entry["message"] = result.error_msg or "Unknown error"
+            log.info("Batch [%d/%d] result: %s — %s", i + 1, n, entry["status"], entry["message"])
             results.append(entry)
         self.finished.emit(results)
 

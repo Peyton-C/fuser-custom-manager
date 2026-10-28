@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 from datetime import date
 from pathlib import Path
@@ -23,6 +24,8 @@ from gui.refresh_mode_dialog import RefreshModeDialog
 from gui.widgets.stage_backdrop import StageBackdrop
 from gui.widgets.fuser_label import FuserLabel
 
+log = logging.getLogger(__name__)
+
 
 class FuserApp(QMainWindow):
     def __init__(self):
@@ -40,6 +43,9 @@ class FuserApp(QMainWindow):
         self._install_dir = Path(path_str) if path_str else DEFAULT_INSTALL_DIR
         self._batch_mode = False
         self._active_worker = None
+        # Single-song downloads can overlap; holding them only in _active_worker let a
+        # running QThread get garbage-collected when the next download started.
+        self._download_workers: set = set()
         self._art_worker = None
         self._single_art_worker = None
 
@@ -120,7 +126,8 @@ class FuserApp(QMainWindow):
             self._backdrop.resize(self.centralWidget().size())
 
     def closeEvent(self, event):
-        for worker in (self._art_worker, self._single_art_worker, self._active_worker):
+        for worker in (self._art_worker, self._single_art_worker, self._active_worker,
+                       *self._download_workers):
             if worker is not None and worker.isRunning():
                 if hasattr(worker, "stop"):
                     worker.stop()
@@ -343,14 +350,18 @@ class FuserApp(QMainWindow):
     # ── Download / install ────────────────────────────────────────────────
 
     def _on_download(self, song: dict):
+        log.info("Download clicked: song %s %r (link=%s)", song["id"], song["title"], song.get("link"))
         self.status_bar.start_download(song["title"])
         worker = DownloadWorker(song, self._install_dir, self.conn)
         worker.progress.connect(self.status_bar.set_progress)
         worker.done.connect(self._on_download_done)
         worker.manual.connect(self.detail_panel.show_manual_link)
         worker.manual.connect(lambda _: self.status_bar.set_idle())
+        worker.manual.connect(lambda url: log.info("Manual download required: %s", url))
         worker.error.connect(self.status_bar.set_error)
-        self._active_worker = worker
+        worker.error.connect(lambda msg: log.error("Download error shown to user: %s", msg))
+        self._download_workers.add(worker)
+        worker.finished.connect(lambda: self._download_workers.discard(worker))
         worker.start()
 
     def _on_download_done(self, title: str):

@@ -1,9 +1,12 @@
+import logging
 import shutil
 import sqlite3
 from pathlib import Path
 
 from db import mark_installed, mark_uninstalled, get_installed, get_songs
 from downloader import DownloadResult
+
+log = logging.getLogger(__name__)
 
 DEFAULT_INSTALL_DIR = Path(r"C:\Fuser\Fuser\Content\Paks\custom_songs")
 
@@ -27,6 +30,7 @@ def install_pairs(result: DownloadResult, song_id: int, artist: str,
             shutil.move(str(sig_src), str(sig_dst_path))
             sig_dst = str(sig_dst_path)
         mark_installed(conn, song_id, str(pak_dst), sig_dst)
+        log.info("Installed song %s: %s (sig: %s)", song_id, pak_dst, sig_dst or "none")
 
 
 def install_manual_files(song_id: int, artist: str, pak_path: Path, sig_path: Path | None,
