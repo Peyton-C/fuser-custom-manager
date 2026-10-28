@@ -185,3 +185,16 @@ def test_download_gdrive_zip(tmp_path):
     assert len(result.pairs) == 1
     assert result.pairs[0][0].name == "song.pak"
     assert result.pairs[0][1].name == "song.sig"
+
+
+def test_detect_host_official():
+    assert detect_host("official://fucuco_main/Daft Punk/Get Lucky") == "official"
+
+
+def test_download_official_link_errors_without_network():
+    with patch("downloader.requests.head") as head, patch("downloader.gdown.download") as gd:
+        r = download("official://fucuco_main/Daft Punk/Get Lucky")
+    assert r.status == "error"
+    assert "Official" in r.error_msg
+    head.assert_not_called()
+    gd.assert_not_called()

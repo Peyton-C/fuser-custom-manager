@@ -30,10 +30,22 @@ class DownloadResult:
     work_dir:  Path | None = None   # staging dir to clean up after install (ok only)
 
 
+OFFICIAL_LINK_PREFIX = "official://"
+OFFICIAL_MSG = "Official Fuser content (base game / DLC / shop) — nothing to download"
+
+
+def is_official_link(url: str) -> bool:
+    """True for the synthetic links sources.fucuco gives rows with no real URL
+    (official songs, which are already in the game)."""
+    return bool(url) and url.lower().startswith(OFFICIAL_LINK_PREFIX)
+
+
 def detect_host(url: str) -> str:
     if not url:
         return "other"
     u = url.lower()
+    if is_official_link(u):
+        return "official"
     if "drive.google.com" in u:
         return "gdrive"
     if "1drv.ms" in u or "onedrive.live.com" in u:
@@ -130,11 +142,18 @@ def _flatten_into(src: Path, dst: Path) -> None:
 
 def download(url: str, progress_cb: Callable | None = None) -> DownloadResult:
     host = detect_host(url)
-    if host != "gdrive":
-        return _non_gdrive(url)
-    STAGING_DIR.mkdir(parents=True, exist_ok=True)
-    work_dir = Path(tempfile.mkdtemp(dir=STAGING_DIR))
-    return _gdrive(url, work_dir)
+    log.info("download() start: host=%s url=%s", host, url)
+    if host == "official":
+        result = DownloadResult(status="error", pairs=[], error_msg=OFFICIAL_MSG, raw_url=url)
+    elif host != "gdrive":
+        result = _non_gdrive(url)
+    else:
+        STAGING_DIR.mkdir(parents=True, exist_ok=True)
+        work_dir = Path(tempfile.mkdtemp(dir=STAGING_DIR))
+        result = _gdrive(url, work_dir)
+    log.info("download() result: status=%s pairs=%d error=%s",
+             result.status, len(result.pairs), result.error_msg)
+    return result
 
 
 def _gdrive(url: str, work_dir: Path) -> DownloadResult:

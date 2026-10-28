@@ -12,6 +12,7 @@ from PySide6.QtGui import QIcon, QPixmapCache
 
 from db import init_db, get_songs, get_song_by_id, get_setting, set_setting, count_pending_art
 from installer import scan_and_sync, uninstall, install_manual_files, DEFAULT_INSTALL_DIR
+from downloader import is_official_link
 
 from gui.filter_bar import FilterBar
 from gui.song_table import SongTableModel, SongTableView
@@ -224,22 +225,22 @@ class FuserApp(QMainWindow):
 
     def _on_batch_download(self):
         songs = self.song_table.get_selected_songs()
-        to_download = [s for s in songs if not s.get("pak_path")]
         already_installed = [s for s in songs if s.get("pak_path")]
+        official = [s for s in songs if not s.get("pak_path") and is_official_link(s.get("link", ""))]
+        to_download = [s for s in songs if not s.get("pak_path") and s not in official]
+        log.info("Batch download clicked: %d selected, %d to download, %d already installed, %d official",
+                 len(songs), len(to_download), len(already_installed), len(official))
+        skipped = (
+            [{"song": s, "status": "skipped", "message": "Already installed"} for s in already_installed]
+            + [{"song": s, "status": "skipped", "message": "Official content — already in game"}
+               for s in official]
+        )
         if not to_download:
-            skipped = [
-                {"song": s, "status": "skipped", "message": "Already installed"}
-                for s in already_installed
-            ]
             self._show_batch_results(skipped)
             return
         self._download_btn.setEnabled(False)
         self._download_btn.setText("Downloading…")
         worker = BatchDownloadWorker(to_download, self._install_dir, self.conn)
-        skipped = [
-            {"song": s, "status": "skipped", "message": "Already installed"}
-            for s in already_installed
-        ]
         worker.item_progress.connect(self.status_bar.set_message)
         worker.finished.connect(lambda results: self._on_batch_done(results + skipped))
         self._active_worker = worker

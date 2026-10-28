@@ -225,3 +225,24 @@ def test_fetch_art_requested_emitted_on_click(qtbot, tmp_path):
         qtbot.mouseClick(panel._art_overlay_btn, Qt.MouseButton.LeftButton)
     assert len(emitted) == 1
     assert emitted[0]["id"] == 42
+
+
+OFFICIAL_SONG = {**SONG, "link": "official://fucuco_main/Daft Punk/Get Lucky", "quality": "Official"}
+
+
+def test_official_song_disables_download_and_explains(qtbot):
+    panel = DetailPanel()
+    qtbot.addWidget(panel)
+    panel.show(OFFICIAL_SONG)
+    assert not panel._dl_btn.isEnabled()
+    assert not panel._mark_btn.isEnabled()
+    assert "Official" in panel._manual_lbl.text()
+
+
+def test_message_cleared_when_switching_to_normal_song(qtbot):
+    panel = DetailPanel()
+    qtbot.addWidget(panel)
+    panel.show(OFFICIAL_SONG)
+    panel.show(SONG)
+    assert panel._dl_btn.isEnabled()
+    assert panel._manual_lbl.text() == ""

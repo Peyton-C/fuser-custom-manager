@@ -9,6 +9,7 @@ from PySide6.QtCore import Signal, Qt, QTimer
 from gui.tokens import TOKENS
 from gui.song_delegate import _art_pixmap
 from db import ART_DIR
+from downloader import is_official_link
 
 _FIELDS = [
     ("creator",        "Creator"),
@@ -340,9 +341,15 @@ class DetailPanel(QFrame):
             self._un_btn.setEnabled(False)
             return
         installed = bool(self._song.get("pak_path"))
-        self._dl_btn.setEnabled(not installed)
-        self._mark_btn.setEnabled(not installed)
+        official = is_official_link(self._song.get("link", ""))
+        self._dl_btn.setEnabled(not installed and not official)
+        self._mark_btn.setEnabled(not installed and not official)
         self._un_btn.setEnabled(installed)
+        if official and not installed:
+            self._manual_lbl.setText(
+                "Official Fuser content" if self._song.get("quality") == "Official"
+                else "No download link in the catalog for this song."
+            )
 
     def _open_link(self):
         if self._song:
