@@ -7,7 +7,7 @@ setup(
     url="https://github.com/steven-gibbons-code/fuser-custom-manager",
     python_requires=">=3.11",
     packages=find_packages(include=["gui", "gui.*", "sources", "sources.*"]),
-    py_modules=["app", "db", "downloader", "installer"],
+    py_modules=["app", "assets_rc", "db", "downloader", "installer"],
     entry_points={
         "console_scripts": [
             "fuser-manager=app:main",
@@ -17,7 +17,7 @@ setup(
         "PySide6>=6.6.0",
         "requests>=2.31.0",
         "beautifulsoup4>=4.12.3",
-        "gdown>=5.1.0",
+        "gdown>=6.0",
         "patool==4.0.4",
     ],
 )

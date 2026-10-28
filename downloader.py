@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import tempfile
@@ -11,6 +12,8 @@ import patoolib
 import requests
 
 STAGING_DIR = Path.home() / ".fuser_manager" / "staging"
+
+log = logging.getLogger(__name__)
 
 # Archive extensions we can handle
 _ZIP_EXTS = {".zip"}
@@ -138,14 +141,22 @@ def _gdrive(url: str, work_dir: Path) -> DownloadResult:
         if is_folder:
             gdown.download_folder(url, output=str(work_dir), quiet=False, use_cookies=False)
         else:
-            output_file = gdown.download(url, quiet=False, fuzzy=True)
+            # gdown >= 6 parses share links itself (the old fuzzy= kwarg was removed);
+            # a trailing slash makes it save into work_dir under the original filename.
+            output_file = gdown.download(url, output=f"{work_dir}{os.sep}", quiet=False)
             if output_file:
                 src = Path(output_file)
-                shutil.move(str(src), str(work_dir / src.name))
+                if src.parent != work_dir:
+                    shutil.move(str(src), str(work_dir / src.name))
+            else:
+                log.warning("gdown.download returned nothing for %s", url)
     except Exception as exc:
+        log.exception("gdown failed for %s", url)
         _rm(work_dir)
         return DownloadResult(status="error", pairs=[], error_msg=str(exc), raw_url=url)
 
+    log.info("Downloaded into %s: %s", work_dir,
+             [str(p.relative_to(work_dir)) for p in work_dir.rglob("*")])
     pairs = find_pak_sig_pairs(work_dir)
     if not pairs:
         # No direct .pak/.sig — maybe gdrive returned a compressed archive
