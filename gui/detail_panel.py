@@ -39,7 +39,7 @@ def _pill_style(bg: str, fg: str) -> str:
     )
 
 
-class DetailPanel(QScrollArea):
+class DetailPanel(QFrame):
     download_requested = Signal(object)
     uninstall_requested = Signal(object)
     manual_install_requested = Signal(object, object, object)
@@ -48,14 +48,25 @@ class DetailPanel(QScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._song: dict | None = None
-        self.setWidgetResizable(True)
         self.setObjectName("detailPanel")
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._build()
 
     def _build(self):
+        # Art + metadata scroll; the action buttons are pinned below the scroll
+        # area so they stay visible when the panel is shorter than its content.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }")
+        outer.addWidget(scroll, 1)
+
         container = QWidget()
-        self.setWidget(container)
+        scroll.setWidget(container)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(0)
@@ -197,19 +208,21 @@ class DetailPanel(QScrollArea):
         self._labels["title"] = self._title_lbl
 
         layout.addWidget(fields_widget)
+        layout.addStretch()
 
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setStyleSheet("color: rgba(255,255,255,0.06);")
-        layout.addWidget(sep2)
+        outer.addWidget(sep2)
 
-        # ── Actions ────────────────────────────────────────────────
+        # ── Actions (pinned, outside the scroll area) ─────────────
         actions = QWidget()
         a_layout = QVBoxLayout(actions)
-        a_layout.setContentsMargins(0, 10, 0, 0)
+        a_layout.setContentsMargins(12, 10, 12, 12)
         a_layout.setSpacing(6)
 
-        self._dl_btn = QPushButton("Download & Install")
+        # "&&" — a lone "&" is a Qt mnemonic marker and renders as "Download_Install".
+        self._dl_btn = QPushButton("Download && Install")
         self._dl_btn.setObjectName("primaryBtn")
         self._dl_btn.clicked.connect(self._download)
         a_layout.addWidget(self._dl_btn)
@@ -229,8 +242,7 @@ class DetailPanel(QScrollArea):
         self._manual_lbl.setWordWrap(True)
         a_layout.addWidget(self._manual_lbl)
 
-        layout.addWidget(actions)
-        layout.addStretch()
+        outer.addWidget(actions)
 
         self._sync_buttons()
 
